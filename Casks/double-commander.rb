@@ -19,5 +19,10 @@ cask "double-commander" do
 
   app "Double Commander.app"
 
-  zap trash: "~/Library/Caches/doublecmd"
+  zap trash: [
+    "~/.config/doublecmd",
+    "~/Library/Caches/doublecmd",
+    "~/Library/Preferences/com.company.doublecmd.plist",
+    "~/Library/Saved Application State/com.company.doublecmd.savedState",
+  ]
 end
