@@ -1,6 +1,6 @@
 cask "zap" do
-  version "2.17.0"
-  sha256 "3b3c6c8b105a33cb2a7d718e7f9aa41418a6d8aae3887d94a42523b5eeac723b"
+  version "null"
+  sha256 "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
   url "https://github.com/zaproxy/zaproxy/releases/download/v#{version}/ZAP_#{version}_aarch64.dmg"
   name "Zed Attack Proxy"
