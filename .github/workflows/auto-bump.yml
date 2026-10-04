@@ -4,7 +4,7 @@ on:
   schedule:
     # 每天 UTC 02:00（北京时间 10:00）运行
     - cron: '0 2 * * *'
-  workflow_dispatch: # 支持手动点击触发
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,71 +18,85 @@ jobs:
 
       - name: Check and bump outdated casks
         run: |
-          # 禁用终端颜色输出
           export HOMEBREW_NO_COLOR=1
           export NO_COLOR=1
 
           # 1. 注册本地 Tap
           brew tap adowls/tap "$GITHUB_WORKSPACE"
 
-          # 2. 以 JSON 纯文本格式检查更新，杜绝任何颜色字符干扰
+          # 2. 检查更新
           UPDATES_JSON=$(brew livecheck --tap adowls/tap --newer-only --json || true)
 
-          # 检查是否有更新项
           COUNT=$(echo "$UPDATES_JSON" | jq '. | length' 2>/dev/null || echo 0)
           if [ "$COUNT" -eq 0 ]; then
             echo "✔ 所有软件均已是最新版本，无需修改。"
             exit 0
           fi
 
-          echo "发现 $COUNT 个软件需要更新！"
+          echo "发现 $COUNT 个软件有新版本！"
 
-          # 3. 遍历解析出来的软件名和最新版本
-          echo "$UPDATES_JSON" | jq -r '.[] | "\(.cask | split("/") | last) \(.version.latest)"' | while read -r cask_name latest_ver; do
+          # 3. 兼容解析：同时支持 .versions.latest 和 .version.latest
+          echo "$UPDATES_JSON" | jq -r '.[] | "\(.cask | split("/") | last) \((.versions.latest // .version.latest // "null"))"' | while read -r cask_name latest_ver; do
             [ -z "$cask_name" ] && continue
+
+            # 严格拦截 null 或空版本
+            if [ -z "$latest_ver" ] || [ "$latest_ver" = "null" ]; then
+              echo "--------------------------------------------------"
+              echo "警告: $cask_name 未能解析到有效版本号 ($latest_ver)，跳过"
+              continue
+            fi
 
             echo "--------------------------------------------------"
             echo "正在处理: $cask_name -> 目标版本: $latest_ver"
 
-            # 动态查找文件真实路径（兼顾 Casks/i4tools.rb 或 Casks/i/i4tools.rb）
             rb_file=$(find Casks -name "${cask_name}.rb" -print -quit)
-
             if [ -z "$rb_file" ] || [ ! -f "$rb_file" ]; then
-              echo "错误: 未在 Casks 目录下找到 ${cask_name}.rb 文件，跳过"
+              echo "错误: 未找到 ${cask_name}.rb 文件，跳过"
               continue
             fi
             echo "匹配到文件: $rb_file"
 
-            # 提取旧版本号
-            old_ver=$(grep -E '^\s*version\s+"' "$rb_file" | sed -E 's/.*version "([^"]+)".*/\1/' || true)
+            old_ver=$(grep -E '^\s*version\s+"' "$rb_file" | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/' || true)
 
             if [ "$old_ver" = "$latest_ver" ]; then
               echo "$cask_name 已经是最新版本 ($old_ver)，无需更新。"
               continue
             fi
 
-            # 替换版本号为最新版本
+            # 替换版本号
             sed -i '' -E "s/version \"$old_ver\"/version \"$latest_ver\"/" "$rb_file"
 
-            # 获取真实下载直链
+            # 动态计算下载 URL
             download_url=$(brew ruby -e 'puts Cask::CaskLoader.load("adowls/tap/'"$cask_name"'").url.to_s' 2>/dev/null || true)
-            if [ -z "$download_url" ]; then
+            if [ -z "$download_url" ] || [[ "$download_url" == *"null"* ]]; then
               raw_url=$(grep -E '^\s*url\s+"' "$rb_file" | head -n1 | sed -E 's/.*url "([^"]+)".*/\1/')
-              download_url=$(echo "$raw_url" | sed "s/#{version}/$latest_ver/g")
+              download_url=$(echo "$raw_url" | sed "s/#{version}/$latest_ver/g" | sed "s/#{arch}/aarch64/g")
             fi
 
             echo "正在下载安装包并计算哈希: $download_url"
-            new_sha=$(curl -fsSL "$download_url" | shasum -a 256 | awk '{print $1}')
+            
+            # 使用临时文件保存下载内容，避免 curl 失败产生空文件哈希
+            tmp_file=$(mktemp)
+            if ! curl -fsSL "$download_url" -o "$tmp_file"; then
+              echo "错误: 下载失败 (curl 返回非0)，正在回滚 $cask_name..."
+              rm -f "$tmp_file"
+              git checkout -- "$rb_file"
+              continue
+            fi
 
-            if [ -z "$new_sha" ] || [ ${#new_sha} -ne 64 ]; then
-              echo "错误: 下载失败或哈希无效，正在回滚 $cask_name..."
+            new_sha=$(shasum -a 256 "$tmp_file" | awk '{print $1}')
+            rm -f "$tmp_file"
+
+            # 排除 0 字节空文件的特征哈希
+            if [ "$new_sha" = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ] || [ ${#new_sha} -ne 64 ]; then
+              echo "错误: 计算得到的哈希无效或为空文件，正在回滚 $cask_name..."
               git checkout -- "$rb_file"
               continue
             fi
 
             echo "计算完成: sha256 = $new_sha"
 
-            # 兼容替换：无论是 64位旧哈希 还是 :no_check 都能准确替换
+            # 替换旧哈希
             if grep -qE '[0-9a-f]{64}' "$rb_file"; then
               sed -i '' -E "s/[0-9a-f]{64}/$new_sha/g" "$rb_file"
             elif grep -q ':no_check' "$rb_file"; then
