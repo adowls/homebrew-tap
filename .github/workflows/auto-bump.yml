@@ -1,0 +1,63 @@
+name: Auto Bump Casks
+
+on:
+  schedule:
+    # 每天 UTC 时间 02:00（北京时间 10:00）自动运行
+    - cron: '0 2 * * *'
+  workflow_dispatch: # 允许在 GitHub 网页端随时手动点击运行测试
+
+# 授予 Action 写权限，以便自动 Commit 和 Push
+permissions:
+  contents: write
+
+jobs:
+  bump-casks:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Check and bump outdated casks
+        run: |
+          # 1. 将当前 checkout 出的仓库注册为 adowls/tap
+          brew tap adowls/tap "$GITHUB_WORKSPACE"
+
+          # 2. 检查是否有需要升级的软件
+          UPDATES=$(brew livecheck --tap adowls/tap --newer-only --quiet || true)
+
+          if [ -z "$UPDATES" ]; then
+            echo "✔ 所有软件均已是最新版本，无需修改。"
+            exit 0
+          fi
+
+          echo "发现有新版本的软件列表:"
+          echo "$UPDATES"
+
+          # 3. 逐个执行 bump（自动下载 dmg、计算 sha256 并重写对应的 rb 文件）
+          echo "$UPDATES" | while read -r line; do
+            [ -z "$line" ] && continue
+            cask_name=$(echo "$line" | awk -F':' '{print $1}')
+            latest_ver=$(echo "$line" | awk '{print $NF}')
+
+            echo "正在更新 $cask_name 到版本 $latest_ver..."
+            brew bump-cask-pr --write-only --no-audit --version "$latest_ver" "adowls/tap/$cask_name" || {
+              echo "警告: $cask_name 更新失败，跳过并继续处理下一个..."
+            }
+          done
+
+      - name: Commit and push changes
+        run: |
+          # 检查是否有文件改动
+          if [ -n "$(git status --porcelain Casks/)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add Casks/
+            git commit -m "chore(casks): auto bump casks to latest versions"
+            git push
+            echo "✔ 新版本已自动推送到仓库！"
+          else
+            echo "没有产生任何文件改动。"
+          fi
