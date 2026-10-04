@@ -19,7 +19,7 @@ cask "i4tools" do
   depends_on macos: :big_sur
 
   # 爱思助手解压后的 App 名称
-  app "i4Tools.app"
+  pkg "i4tools_arm64.pkg"
   
   uninstall pkgutil: "cn.i4tools.mac"
 
