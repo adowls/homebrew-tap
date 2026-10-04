@@ -15,6 +15,7 @@ cask "double-commander" do
   end
 
   depends_on :macos
+  depends_on arch: :arm64
 
   app "Double Commander.app"
 
