@@ -1,9 +1,8 @@
 cask "double-commander" do
-  arch arm: "aarch64", intel: "x86_64"
+  arch arm: "aarch64"
 
-  version "1.1.32"
-  sha256 arm:   "dfbf339a2ef78e2346ad2a874a9961f5b725c2a8d8b32c33bc7751348488792b",
-         intel: "f2b39a06bcd4da63768db3f21cc36395223b9b289671479439adb6f66c594c15"
+  version "1.2.9"
+  sha256 arm:   "6d615ae9d87fe60fed4efbb32fa83b5c21f2bfc007836f3f12e60e599d3447e8"
 
   url "https://github.com/doublecmd/doublecmd/releases/download/v#{version}/doublecmd-#{version}.cocoa.#{arch}.dmg"
   name "Double Commander"
@@ -15,7 +14,7 @@ cask "double-commander" do
     strategy :github_latest
   end
 
-  depends_on macos: :big_sur
+  depends_on :macos
 
   app "Double Commander.app"
 
