@@ -2,9 +2,9 @@ name: Auto Bump Casks
 
 on:
   schedule:
-    # 每天 UTC 时间 02:00（北京时间 10:00）自动运行
+    # 每天 UTC 02:00（北京时间 10:00）运行
     - cron: '0 2 * * *'
-  workflow_dispatch: # 允许在 GitHub 网页端手动触发
+  workflow_dispatch: # 允许在网页上手动触发
 
 permissions:
   contents: write
@@ -16,16 +16,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Update Homebrew
-        run: |
-          brew update-reset
-
       - name: Check and bump outdated casks
         run: |
-          # 1. 将当前 checkout 出的仓库注册为本地 tap
+          # 1. 注册当前仓库为 Tap
           brew tap adowls/tap "$GITHUB_WORKSPACE"
 
-          # 2. 检查是否有需要升级的软件
+          # 2. 检查是否有新版本
           UPDATES=$(brew livecheck --tap adowls/tap --newer-only --quiet || true)
 
           if [ -z "$UPDATES" ]; then
@@ -36,16 +32,53 @@ jobs:
           echo "发现有新版本的软件列表:"
           echo "$UPDATES"
 
-          # 3. 逐个执行 bump（自动下载 dmg、计算 sha256 并重写对应的 rb 文件）
+          # 3. 逐个更新
           echo "$UPDATES" | while read -r line; do
             [ -z "$line" ] && continue
             cask_name=$(echo "$line" | awk -F':' '{print $1}')
             latest_ver=$(echo "$line" | awk '{print $NF}')
+            rb_file="Casks/${cask_name}.rb"
 
-            echo "正在更新 $cask_name 到版本 $latest_ver..."
-            brew bump-cask-pr --write-only --no-audit --version "$latest_ver" "adowls/tap/$cask_name" || {
-              echo "警告: $cask_name 更新失败，跳过并继续处理下一个..."
-            }
+            echo "--------------------------------------------------"
+            echo "正在处理: $cask_name -> 最新版本: $latest_ver"
+
+            if [ ! -f "$rb_file" ]; then
+              echo "未找到对应文件: $rb_file，跳过"
+              continue
+            fi
+
+            # 从 .rb 中提取当前旧版本号
+            old_ver=$(grep -E '^\s*version\s+"' "$rb_file" | sed -E 's/.*version "([^"]+)".*/\1/')
+
+            if [ "$old_ver" = "$latest_ver" ]; then
+              echo "$cask_name 已经是最新版本 ($old_ver)，无需更新。"
+              continue
+            fi
+
+            # 临时将 rb 文件中的版本更新为最新版本，借此读取新版本的下载 URL
+            sed -i '' -E "s/version \"$old_ver\"/version \"$latest_ver\"/" "$rb_file"
+            download_url=$(brew info --cask "adowls/tap/$cask_name" 2>/dev/null | grep -E '^https?://' | head -n1 || true)
+
+            # 如果没有直接读取到 URL，从 rb 文件中的 url 这一行提取并替换
+            if [ -z "$download_url" ]; then
+              raw_url=$(grep -E '^\s*url\s+"' "$rb_file" | head -n1 | sed -E 's/.*url "([^"]+)".*/\1/')
+              download_url=$(echo "$raw_url" | sed "s/#{version}/$latest_ver/g")
+            fi
+
+            echo "正在下载新包计算哈希: $download_url"
+            new_sha=$(curl -fsSL "$download_url" | shasum -a 256 | awk '{print $1}')
+
+            if [ -z "$new_sha" ] || [ ${#new_sha} -ne 64 ]; then
+              echo "错误: 下载失败或未能计算出有效 sha256，正在回滚该文件..."
+              git checkout -- "$rb_file"
+              continue
+            fi
+
+            echo "计算成功: sha256 = $new_sha"
+
+            # 替换 rb 文件中的 sha256（匹配 64 位十六进制字符）
+            sed -i '' -E "s/[0-9a-f]{64}/$new_sha/g" "$rb_file"
+            echo "✔ $cask_name 已成功更新至 $latest_ver"
           done
 
       - name: Commit and push changes
