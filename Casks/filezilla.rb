@@ -8,8 +8,8 @@ cask "filezilla" do
   homepage "https://filezilla-project.org/"
 
   livecheck do
-    url "https://filezilla-project.org/download.php?show_all=1"
-    regex(/FileZilla[._-]v?(\d+(?:\.\d+)+)[._-]macos-arm64\.app\.tar\.bz2/i)
+    url "https://filezilla-project.org/newsfeed.php"
+    regex(/FileZilla\s+Client\s+v?(\d+(?:\.\d+)+)/i)
   end
 
   depends_on arch: :arm64
