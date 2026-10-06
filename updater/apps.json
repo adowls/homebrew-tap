@@ -1,0 +1,13 @@
+[
+  {
+    "id": "filezilla",
+    "name": "FileZilla",
+    "desc": "FTP, FTPS and SFTP client",
+    "homepage": "https://filezilla-project.org/",
+    "pageUrl": "https://filezilla-project.org/download.php?show_all=1",
+    "versionRegex": "FileZilla_([0-9.]+)_macos-arm64\\.app\\.tar\\.bz2",
+    "clickSelector": "a:has-text('macos-arm64.app.tar.bz2')",
+    "fallbackClickSelector": "a[href*='cdn.filezilla-project.org'], a:has-text('Download')",
+    "appBundle": "FileZilla.app"
+  }
+]
