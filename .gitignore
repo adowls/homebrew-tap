@@ -1,0 +1,4 @@
+node_modules/
+updater/node_modules/
+updater/downloads/
+.DS_Store

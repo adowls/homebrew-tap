@@ -4,7 +4,6 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 
-// 临时文件下载目录放于 updater/downloads
 const DOWNLOAD_DIR = path.resolve('downloads');
 if (!fs.existsSync(DOWNLOAD_DIR)) {
   fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
@@ -27,19 +26,40 @@ async function checkReleaseExists(repo, tag, token) {
   }
 }
 
-// 自动修改 ../Casks/<app_id>.rb 的版本号和哈希值
-function updateCaskFile(appId, version, sha256) {
-  const caskPath = path.resolve('..', 'Casks', `${appId}.rb`);
-  if (!fs.existsSync(caskPath)) {
-    console.warn(`[${appId}] 未找到对应的 Cask 文件: ${caskPath}，跳过自动修改。`);
-    return;
-  }
+// 自动修改或新建 ../Casks/<app_id>.rb
+function updateOrGenerateCask(appConfig, version, sha256, filename, repo) {
+  const caskPath = path.resolve('..', 'Casks', `${appConfig.id}.rb`);
+  const tag = `${appConfig.id}-v${version}`;
 
-  let content = fs.readFileSync(caskPath, 'utf-8');
-  content = content.replace(/version\s+"[^"]+"/, `version "${version}"`);
-  content = content.replace(/sha256\s+"[^"]+"/, `sha256 "${sha256}"`);
-  fs.writeFileSync(caskPath, content, 'utf-8');
-  console.log(`[${appId}] 已自动更新 ${caskPath} 的版本为 ${version}`);
+  if (fs.existsSync(caskPath)) {
+    // 存在则只替换版本和哈希
+    let content = fs.readFileSync(caskPath, 'utf-8');
+    content = content.replace(/version\s+"[^"]+"/, `version "${version}"`);
+    content = content.replace(/sha256\s+"[^"]+"/, `sha256 "${sha256}"`);
+    fs.writeFileSync(caskPath, content, 'utf-8');
+    console.log(`[${appConfig.id}] 已自动更新 ${caskPath} 版本为 ${version}`);
+  } else {
+    // 不存在则自动根据模板新建
+    console.log(`[${appConfig.id}] 检测到 ${caskPath} 不存在，正在自动创建...`);
+    const caskContent = `cask "${appConfig.id}" do
+  version "${version}"
+  sha256 "${sha256}"
+
+  url "https://github.com/${repo}/releases/download/${tag}/${filename}"
+  name "${appConfig.name}"
+  desc "${appConfig.desc || appConfig.name}"
+  homepage "${appConfig.homepage || ""}"
+
+  livecheck do
+    skip "Managed by custom sync workflow"
+  end
+
+  app "${appConfig.appBundle || appConfig.name + ".app"}"
+end
+`;
+    fs.writeFileSync(caskPath, caskContent, 'utf-8');
+    console.log(`[${appConfig.id}] ✔ 已成功自动生成 ${caskPath}`);
+  }
 }
 
 async function processApp(appConfig, browser, repo, token) {
@@ -54,59 +74,99 @@ async function processApp(appConfig, browser, repo, token) {
   const page = await context.newPage();
 
   try {
-    await page.goto(appConfig.pageUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    let version = null;
+    let download = null;
 
-    const content = await page.content();
-    const match = content.match(new RegExp(appConfig.versionRegex, 'i'));
-    if (!match || !match[1]) {
-      console.error(`[${appConfig.id}] 提取版本号失败。`);
-      return;
-    }
+    if (appConfig.directDownload) {
+      // 模式 A：直链下载模式（适用于 Muse 等 API 下载链接）
+      console.log(`[${appConfig.id}] 采用直链模式，正在请求直链并捕获下载流...`);
+      const downloadPromise = context.waitForEvent('download', { timeout: 60000 });
+      await page.goto(appConfig.pageUrl).catch(() => { });
+      download = await downloadPromise;
 
-    const version = match[1];
-    const tag = `${appConfig.id}-v${version}`;
-    console.log(`[${appConfig.id}] 最新版本: ${version}`);
+      if (!download) {
+        console.error(`[${appConfig.id}] 未能捕获到直链下载流。`);
+        return;
+      }
 
-    if (await checkReleaseExists(repo, tag, token)) {
-      console.log(`[${appConfig.id}] 该版本已存在，无需更新。`);
-      return;
-    }
+      const filename = download.suggestedFilename();
+      console.log(`[${appConfig.id}] 捕获到文件名: ${filename}`);
+      const match = filename.match(new RegExp(appConfig.versionRegex, 'i'));
+      if (!match || !match[1]) {
+        console.error(`[${appConfig.id}] 无法从文件名 ${filename} 中提取版本号，请检查 versionRegex。`);
+        await download.cancel().catch(() => { });
+        return;
+      }
 
-    console.log(`[${appConfig.id}] 发现新版本，开始下载...`);
-    const link = page.locator(appConfig.clickSelector).first();
-    const downloadPromise = context.waitForEvent('download', { timeout: 30000 }).catch(() => null);
-    await link.click();
-    let download = await downloadPromise;
+      version = match[1];
+      const tag = `${appConfig.id}-v${version}`;
+      console.log(`[${appConfig.id}] 解析出版本: ${version} (Tag: ${tag})`);
 
-    if (!download && appConfig.fallbackClickSelector) {
-      await page.waitForLoadState('domcontentloaded');
-      const directPromise = context.waitForEvent('download', { timeout: 60000 });
-      await page.locator(appConfig.fallbackClickSelector).first().click();
-      download = await directPromise;
+      if (await checkReleaseExists(repo, tag, token)) {
+        console.log(`[${appConfig.id}] 该版本已存在，取消本次下载。`);
+        await download.cancel().catch(() => { });
+        return;
+      }
+    } else {
+      // 模式 B：页面探测模式（适用于 FileZilla 等在 HTML 中写明版本的网站）
+      console.log(`[${appConfig.id}] 正在访问展示页: ${appConfig.pageUrl}`);
+      await page.goto(appConfig.pageUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+      const content = await page.content();
+      const match = content.match(new RegExp(appConfig.versionRegex, 'i'));
+      if (!match || !match[1]) {
+        console.error(`[${appConfig.id}] 提取版本号失败。`);
+        return;
+      }
+
+      version = match[1];
+      const tag = `${appConfig.id}-v${version}`;
+      console.log(`[${appConfig.id}] 最新版本: ${version} (Tag: ${tag})`);
+
+      if (await checkReleaseExists(repo, tag, token)) {
+        console.log(`[${appConfig.id}] 该版本已存在，跳过下载。`);
+        return;
+      }
+
+      console.log(`[${appConfig.id}] 发现新版本，开始点击下载...`);
+      const link = page.locator(appConfig.clickSelector).first();
+      const downloadPromise = context.waitForEvent('download', { timeout: 30000 }).catch(() => null);
+      await link.click();
+      download = await downloadPromise;
+
+      if (!download && appConfig.fallbackClickSelector) {
+        await page.waitForLoadState('domcontentloaded');
+        const directPromise = context.waitForEvent('download', { timeout: 60000 });
+        await page.locator(appConfig.fallbackClickSelector).first().click();
+        download = await directPromise;
+      }
     }
 
     if (!download) {
-      console.error(`[${appConfig.id}] 下载失败。`);
+      console.error(`[${appConfig.id}] 下载流程未完成。`);
       return;
     }
 
     const filename = download.suggestedFilename();
     const savePath = path.join(DOWNLOAD_DIR, filename);
+    console.log(`[${appConfig.id}] 正在保存文件: ${filename}...`);
     await download.saveAs(savePath);
 
     const sha256 = getSha256(savePath);
-    console.log(`[${appConfig.id}] 下载完成，SHA-256: ${sha256}`);
+    console.log(`[${appConfig.id}] 下载完成！SHA-256: ${sha256}`);
 
-    // 1. 发布 GitHub Release
+    // 1. 创建 GitHub Release
+    const tag = `${appConfig.id}-v${version}`;
     const title = `${appConfig.name} ${version}`;
     const notes = `Automated release for ${appConfig.name} v${version}\n\nSHA-256: \`${sha256}\``;
+    console.log(`[${appConfig.id}] 正在发布 GitHub Release (${tag})...`);
     execSync(
       `gh release create "${tag}" "${savePath}" --title "${title}" --notes "${notes}"`,
       { stdio: 'inherit', env: { ...process.env, GH_TOKEN: token } }
     );
 
-    // 2. 自动回写并更新 ../Casks/<app_id>.rb
-    updateCaskFile(appConfig.id, version, sha256);
+    // 2. 自动更新或新建 Cask 文件
+    updateOrGenerateCask(appConfig, version, sha256, filename, repo);
 
   } catch (err) {
     console.error(`[${appConfig.id}] 处理异常:`, err);

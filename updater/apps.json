@@ -17,8 +17,7 @@
     "homepage": "https://muse.ai/",
     "pageUrl": "https://muse.ai/api/hatch/app-download/mac",
     "versionRegex": "Muse-([0-9.]+)\\.dmg",
-    "clickSelector": "a:has-text('Download')",
-    "fallbackClickSelector": "a[href*='/api/hatch/app-download/mac'], a:has-text('Download')",
+    "directDownload": true,
     "appBundle": "Muse.app"
   }
 ]
