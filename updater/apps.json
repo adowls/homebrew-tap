@@ -9,5 +9,16 @@
     "clickSelector": "a:has-text('macos-arm64.app.tar.bz2')",
     "fallbackClickSelector": "a[href*='cdn.filezilla-project.org'], a:has-text('Download')",
     "appBundle": "FileZilla.app"
+  },
+  {
+    "id": "muse",
+    "name": "Muse",
+    "desc": "Muse — Your Personal AI Agent",
+    "homepage": "https://muse.ai/",
+    "pageUrl": "https://muse.ai/api/hatch/app-download/mac",
+    "versionRegex": "Muse-([0-9.]+)\\.dmg",
+    "clickSelector": "a:has-text('Download')",
+    "fallbackClickSelector": "a[href*='/api/hatch/app-download/mac'], a:has-text('Download')",
+    "appBundle": "Muse.app"
   }
 ]
