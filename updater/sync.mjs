@@ -118,9 +118,20 @@ async function processApp(appConfig, browser, repo, token) {
     // 避免 /api/hatch/app-download/mac 对未登录或未授权会话返回 not_eligible。
     let directDownload = null;
     if (appConfig.downloadLinkSelector) {
-      const directLink = page.locator(appConfig.downloadLinkSelector).first();
-      await directLink.waitFor({ state: 'attached', timeout: 15000 }).catch(() => { });
-      const href = await directLink.getAttribute('href').catch(() => null);
+      let href = null;
+
+      if (appConfig.downloadLinkSelector) {
+        const directLink = page.locator(appConfig.downloadLinkSelector).first();
+        await directLink.waitFor({ state: 'attached', timeout: 20000 }).catch(() => { });
+        href = await directLink.getAttribute('href').catch(() => null);
+      }
+
+      if (!href) {
+        href = await page.$$eval('a[href]', anchors => {
+          const match = anchors.find(anchor => /\.dmg(?:[?#]|$)/i.test(anchor.getAttribute('href') || ''));
+          return match?.getAttribute('href') || null;
+        }).catch(() => null);
+      }
 
       if (href) {
         try {
