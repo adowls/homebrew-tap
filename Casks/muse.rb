@@ -12,4 +12,14 @@ cask "muse" do
   end
 
   app "Muse.app"
+
+  zap trash: [
+    "/tmp/muse.mac",
+    "~/Library/Application Support/com.meta.endo",
+    "~/Library/Caches/com.meta.endo",
+    "~/Library/HTTPStorages/com.meta.endo",
+    "~/Library/Preferences/com.meta.endo.plist",
+    "~/Library/Saved Application State/com.meta.endo.savedState",
+    "~/Library/WebKit/com.meta.endo",
+  ]
 end
