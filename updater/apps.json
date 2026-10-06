@@ -17,7 +17,7 @@
     "homepage": "https://ai.meta.com/",
     "pageUrl": "https://ai.meta.com/muse/download/",
     "versionRegex": "Muse[_-]?([0-9.]+)?.*\\.dmg",
-    "clickSelector": "a:has-text('Download for macOS')",
+    "clickSelector": "span:has-text('Download for macOS'), text='Download for macOS'",
     "appBundle": "Muse.app"
   }
 ]
