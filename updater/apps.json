@@ -16,7 +16,7 @@
     "desc": "Muse — Your Personal AI Agent",
     "homepage": "https://muse.ai/",
     "pageUrl": "https://muse.ai/api/hatch/app-download/mac",
-    "versionRegex": "Muse-([0-9.]+)\\.dmg",
+    "versionRegex": "Muse[_-]?([0-9.]+)?.*\\.dmg",
     "directDownload": true,
     "appBundle": "Muse.app"
   }

@@ -26,20 +26,17 @@ async function checkReleaseExists(repo, tag, token) {
   }
 }
 
-// 自动修改或新建 ../Casks/<app_id>.rb
 function updateOrGenerateCask(appConfig, version, sha256, filename, repo) {
   const caskPath = path.resolve('..', 'Casks', `${appConfig.id}.rb`);
   const tag = `${appConfig.id}-v${version}`;
 
   if (fs.existsSync(caskPath)) {
-    // 存在则只替换版本和哈希
     let content = fs.readFileSync(caskPath, 'utf-8');
     content = content.replace(/version\s+"[^"]+"/, `version "${version}"`);
     content = content.replace(/sha256\s+"[^"]+"/, `sha256 "${sha256}"`);
     fs.writeFileSync(caskPath, content, 'utf-8');
     console.log(`[${appConfig.id}] 已自动更新 ${caskPath} 版本为 ${version}`);
   } else {
-    // 不存在则自动根据模板新建
     console.log(`[${appConfig.id}] 检测到 ${caskPath} 不存在，正在自动创建...`);
     const caskContent = `cask "${appConfig.id}" do
   version "${version}"
@@ -67,10 +64,22 @@ async function processApp(appConfig, browser, repo, token) {
   console.log(`正在检查应用: ${appConfig.name} (${appConfig.id})`);
   console.log(`========================================`);
 
+  // ⭐️ 伪装真实浏览器环境：注入真实 Referer，抹除自动化标头
+  const referer = appConfig.homepage || (new URL(appConfig.pageUrl).origin + '/');
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    viewport: { width: 1440, height: 900 },
+    locale: 'en-US',
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': referer,
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+    },
     acceptDownloads: true
   });
+
   const page = await context.newPage();
 
   try {
@@ -78,37 +87,57 @@ async function processApp(appConfig, browser, repo, token) {
     let download = null;
 
     if (appConfig.directDownload) {
-      // 模式 A：直链下载模式（适用于 Muse 等 API 下载链接）
-      console.log(`[${appConfig.id}] 采用直链模式，正在请求直链并捕获下载流...`);
-      const downloadPromise = context.waitForEvent('download', { timeout: 60000 });
-      await page.goto(appConfig.pageUrl).catch(() => { });
+      console.log(`[${appConfig.id}] 采用直链模式，先访问首页建立会话，再发起下载...`);
+      // 1. 如果有 homepage，先顺道访问一下建立合法 Session 和 Cookie
+      if (appConfig.homepage) {
+        await page.goto(appConfig.homepage, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
+        await page.waitForTimeout(2000);
+      }
+
+      console.log(`[${appConfig.id}] 正在请求下载入口: ${appConfig.pageUrl}`);
+      const downloadPromise = context.waitForEvent('download', { timeout: 25000 }).catch(() => null);
+
+      const navResponse = await page.goto(appConfig.pageUrl, { timeout: 30000 }).catch(err => {
+        // 如果触发了下载，Chromium 通常会抛出 net::ERR_ABORTED，这是正常现象
+        return null;
+      });
+
       download = await downloadPromise;
 
       if (!download) {
-        console.error(`[${appConfig.id}] 未能捕获到直链下载流。`);
+        // ⭐️ 诊断信息：如果没有产生下载，把服务端的真实返回打印出来
+        const status = navResponse ? navResponse.status() : 'Unknown';
+        const currentUrl = page.url();
+        console.error(`[${appConfig.id}] 错误: 未能捕获到下载流！`);
+        console.error(`  - HTTP 状态码: ${status}`);
+        console.error(`  - 当前所在 URL: ${currentUrl}`);
+        const bodySnippet = (await page.innerText('body').catch(() => '')).slice(0, 300);
+        console.error(`  - 页面返回内容预览: ${bodySnippet.replace(/\s+/g, ' ')}`);
         return;
       }
 
       const filename = download.suggestedFilename();
       console.log(`[${appConfig.id}] 捕获到文件名: ${filename}`);
+
       const match = filename.match(new RegExp(appConfig.versionRegex, 'i'));
-      if (!match || !match[1]) {
-        console.error(`[${appConfig.id}] 无法从文件名 ${filename} 中提取版本号，请检查 versionRegex。`);
-        await download.cancel().catch(() => { });
-        return;
+      if (match && match[1]) {
+        version = match[1];
+      } else {
+        // 如果文件名是 Muse.dmg 这种没有带版本号的，使用当前日期作为临时版本或预设版本
+        console.warn(`[${appConfig.id}] 文件名未包含版本号，使用默认 latest 标记`);
+        version = "latest";
       }
 
-      version = match[1];
       const tag = `${appConfig.id}-v${version}`;
       console.log(`[${appConfig.id}] 解析出版本: ${version} (Tag: ${tag})`);
 
-      if (await checkReleaseExists(repo, tag, token)) {
-        console.log(`[${appConfig.id}] 该版本已存在，取消本次下载。`);
+      if (version !== "latest" && await checkReleaseExists(repo, tag, token)) {
+        console.log(`[${appConfig.id}] 该版本已存在，取消下载。`);
         await download.cancel().catch(() => { });
         return;
       }
     } else {
-      // 模式 B：页面探测模式（适用于 FileZilla 等在 HTML 中写明版本的网站）
+      // 模式 B：页面探测模式（FileZilla 等）
       console.log(`[${appConfig.id}] 正在访问展示页: ${appConfig.pageUrl}`);
       await page.goto(appConfig.pageUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
@@ -143,7 +172,7 @@ async function processApp(appConfig, browser, repo, token) {
     }
 
     if (!download) {
-      console.error(`[${appConfig.id}] 下载流程未完成。`);
+      console.error(`[${appConfig.id}] 未能完成下载流程。`);
       return;
     }
 
@@ -155,7 +184,7 @@ async function processApp(appConfig, browser, repo, token) {
     const sha256 = getSha256(savePath);
     console.log(`[${appConfig.id}] 下载完成！SHA-256: ${sha256}`);
 
-    // 1. 创建 GitHub Release
+    // 发布 GitHub Release
     const tag = `${appConfig.id}-v${version}`;
     const title = `${appConfig.name} ${version}`;
     const notes = `Automated release for ${appConfig.name} v${version}\n\nSHA-256: \`${sha256}\``;
@@ -165,7 +194,7 @@ async function processApp(appConfig, browser, repo, token) {
       { stdio: 'inherit', env: { ...process.env, GH_TOKEN: token } }
     );
 
-    // 2. 自动更新或新建 Cask 文件
+    // 自动更新或创建 Cask 文件
     updateOrGenerateCask(appConfig, version, sha256, filename, repo);
 
   } catch (err) {
@@ -180,7 +209,15 @@ async function main() {
   const token = process.env.GITHUB_TOKEN;
 
   const apps = JSON.parse(fs.readFileSync('apps.json', 'utf-8'));
-  const browser = await chromium.launch({ headless: true });
+  // ⭐️ 核心关键参数：禁用 Blink 自动化标志，消除 navigator.webdriver 特征
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--no-sandbox',
+      '--disable-setuid-sandbox'
+    ]
+  });
 
   for (const app of apps) {
     await processApp(app, browser, repo, token);
