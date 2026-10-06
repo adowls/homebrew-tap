@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 const DOWNLOAD_DIR = path.resolve('downloads');
 if (!fs.existsSync(DOWNLOAD_DIR)) {
@@ -174,8 +174,9 @@ async function processApp(appConfig, browser, repo, token) {
 
       console.log(`[${appConfig.id}] 下载完成！SHA-256: ${sha256}`);
       console.log(`[${appConfig.id}] 正在发布 GitHub Release (${releaseTag})...`);
-      execSync(
-        `gh release create "${releaseTag}" "${savePath}" --title "${title}" --notes "${notes}"`,
+      execFileSync(
+        'gh',
+        ['release', 'create', releaseTag, savePath, '--title', title, '--notes', notes],
         { stdio: 'inherit', env: { ...process.env, GH_TOKEN: token } }
       );
 
@@ -259,8 +260,9 @@ async function processApp(appConfig, browser, repo, token) {
     const title = `${appConfig.name} ${version}`;
     const notes = `Automated release for ${appConfig.name} v${version}\n\nSHA-256: \`${sha256}\``;
     console.log(`[${appConfig.id}] 正在发布 GitHub Release (${tag})...`);
-    execSync(
-      `gh release create "${tag}" "${savePath}" --title "${title}" --notes "${notes}"`,
+    execFileSync(
+      'gh',
+      ['release', 'create', tag, savePath, '--title', title, '--notes', notes],
       { stdio: 'inherit', env: { ...process.env, GH_TOKEN: token } }
     );
 
