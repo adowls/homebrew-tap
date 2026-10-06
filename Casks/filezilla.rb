@@ -1,6 +1,6 @@
 cask "filezilla" do
   version "3.71.1"
-  sha256 "..."
+  sha256 "73f081493dc528429d601cc0860900b9e9ded60b6a12fadee027d18939939238"
 
   url "https://github.com/adowls/homebrew-tap/releases/download/filezilla-v#{version}/FileZilla_#{version}_macos-arm64.app.tar.bz2"
   name "FileZilla"
