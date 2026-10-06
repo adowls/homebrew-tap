@@ -68,7 +68,20 @@ async function processApp(appConfig, browser, repo, token) {
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
     viewport: { width: 1440, height: 900 },
     locale: 'en-US',
+    extraHTTPHeaders: {
+      'sec-ch-ua-platform': '"macOS"',
+      'sec-ch-ua-mobile': '?0',
+      'Referer': appConfig.homepage || 'https://ai.meta.com/'
+    },
     acceptDownloads: true
+  });
+
+  // ⭐️ 核心关键：在 Linux 容器中强制伪装 navigator.platform 为 MacIntel
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+    if (navigator.userAgentData) {
+      Object.defineProperty(navigator.userAgentData, 'platform', { get: () => 'macOS' });
+    }
   });
 
   const page = await context.newPage();
@@ -77,7 +90,7 @@ async function processApp(appConfig, browser, repo, token) {
     console.log(`[${appConfig.id}] 正在访问入口页: ${appConfig.pageUrl}`);
     await page.goto(appConfig.pageUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    // 自动同意常见的 Cookie 弹窗（防止遮挡点击）
+    // 自动同意 Meta / 网站 Cookie 弹窗
     const cookieBtn = page.locator('button:has-text("Allow all cookies"), button:has-text("Decline optional cookies"), button:has-text("Accept all")').first();
     if (await cookieBtn.count() > 0 && await cookieBtn.isVisible()) {
       await cookieBtn.click().catch(() => { });
@@ -85,7 +98,7 @@ async function processApp(appConfig, browser, repo, token) {
 
     let version = null;
 
-    // ⭐️ 阶段 1：先看页面 HTML 中是否印有版本（如 FileZilla）
+    // 阶段 1：先看页面 HTML 中是否已经印有版本（如 FileZilla）
     const content = await page.content();
     const pageMatch = content.match(new RegExp(appConfig.versionRegex, 'i'));
 
@@ -98,44 +111,51 @@ async function processApp(appConfig, browser, repo, token) {
         return;
       }
     } else {
-      console.log(`[${appConfig.id}] 页面 HTML 中未印有版本号（属于动态分发类型），准备点击按钮捕获下载...`);
+      console.log(`[${appConfig.id}] 页面 HTML 中未印有版本号（属于动态分发类型），准备捕获下载流...`);
     }
 
-    // ⭐️ 阶段 2：定位下载按钮并模拟真实用户点击
+    // 阶段 2：寻找下载按钮触发下载
+    let download = null;
+    let downloadPromise = context.waitForEvent('download', { timeout: 35000 }).catch(() => null);
+
     const link = page.locator(appConfig.clickSelector).first();
+    let buttonFound = false;
 
-    console.log(`[${appConfig.id}] 正在等待下载按钮渲染到页面...`);
     try {
-      await link.waitFor({ state: 'visible', timeout: 15000 });
+      console.log(`[${appConfig.id}] 正在等待下载按钮渲染到页面...`);
+      await link.waitFor({ state: 'visible', timeout: 10000 });
+      buttonFound = true;
     } catch {
-      console.error(`[${appConfig.id}] 等待超时，页面未渲染出下载按钮: ${appConfig.clickSelector}`);
-      return;
+      console.warn(`[${appConfig.id}] 未能等到按钮渲染，准备启动智能会话降级机制...`);
     }
 
-    console.log(`[${appConfig.id}] 捕获到按钮，触发下载点击...`);
-    // 统一在外部声明下载相关变量，避免重复声明冲突
-    let downloadPromise = context.waitForEvent('download', { timeout: 40000 }).catch(() => null);
+    if (buttonFound) {
+      console.log(`[${appConfig.id}] 捕获到按钮，触发下载点击...`);
+      await link.click({ timeout: 10000 }).catch(async () => {
+        await link.click({ force: true });
+      });
+      download = await downloadPromise;
+    }
 
-    await link.click({ timeout: 10000 }).catch(async () => {
-      await link.click({ force: true });
-    });
-
-    let download = await downloadPromise;
-
-    // 若未直接触发下载，尝试备用选择器
-    if (!download && appConfig.fallbackClickSelector) {
-      console.log(`[${appConfig.id}] 尝试备用选择器...`);
-      downloadPromise = context.waitForEvent('download', { timeout: 60000 }).catch(() => null);
-      await page.locator(appConfig.fallbackClickSelector).first().click({ force: true });
+    // ⭐️ 阶段 2.5：智能降级机制（如果按钮被隐藏或点击未触发，直接在已建立的合法会话中请求 fallbackUrl）
+    if (!download && appConfig.fallbackUrl) {
+      console.log(`[${appConfig.id}] 触发降级机制：直接在当前合法 Mac 会话内导航到下载入口: ${appConfig.fallbackUrl}`);
+      downloadPromise = context.waitForEvent('download', { timeout: 40000 }).catch(() => null);
+      await page.goto(appConfig.fallbackUrl).catch(() => { });
       download = await downloadPromise;
     }
 
     if (!download) {
-      console.error(`[${appConfig.id}] 点击后未捕获到文件下载流。`);
+      // 输出深度诊断日志
+      console.error(`[${appConfig.id}] 无法触发下载！诊断信息:`);
+      console.error(`  - 当前 URL: ${page.url()}`);
+      console.error(`  - 页面标题: ${await page.title()}`);
+      const bodyText = (await page.innerText('body').catch(() => '')).slice(0, 300);
+      console.error(`  - 页面文字预览: ${bodyText.replace(/\s+/g, ' ')}`);
       return;
     }
 
-    // ⭐️ 阶段 3：从捕获到的真实文件名（如 Muse-6.0.dmg）中提取版本
+    // 阶段 3：从实际下载到的文件名（如 Muse-6.0.dmg）中提取版本
     const filename = download.suggestedFilename();
     console.log(`[${appConfig.id}] 捕获到下载文件名: ${filename}`);
 
@@ -157,7 +177,7 @@ async function processApp(appConfig, browser, repo, token) {
       }
     }
 
-    // ⭐️ 阶段 4：保存安装包、计算哈希、发布 Release
+    // 阶段 4：保存安装包、计算哈希、发布 Release
     const savePath = path.join(DOWNLOAD_DIR, filename);
     console.log(`[${appConfig.id}] 正在下载保存 ${filename}...`);
     await download.saveAs(savePath);
