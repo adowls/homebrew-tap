@@ -14,10 +14,10 @@
     "id": "muse",
     "name": "Muse",
     "desc": "Muse — Your Personal AI Agent",
-    "homepage": "https://muse.ai/",
-    "pageUrl": "https://muse.ai/api/hatch/app-download/mac",
+    "homepage": "https://ai.meta.com/",
+    "pageUrl": "https://ai.meta.com/muse/download/",
     "versionRegex": "Muse[_-]?([0-9.]+)?.*\\.dmg",
-    "directDownload": true,
+    "clickSelector": "a:has-text('Download for macOS')",
     "appBundle": "Muse.app"
   }
 ]
