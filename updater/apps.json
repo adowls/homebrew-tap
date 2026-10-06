@@ -18,6 +18,7 @@
     "pageUrl": "https://ai.meta.com/muse/download/",
     "versionRegex": "Muse[_-]?([0-9.]+)?.*\\.dmg",
     "clickSelector": ":has-text('Download for macOS'), a[href*='app-download']",
+    "downloadLinkSelector": "a[aria-label='Download for macOS']",
     "fallbackUrl": "https://muse.ai/api/hatch/app-download/mac",
     "appBundle": "Muse.app"
   }

@@ -114,6 +114,64 @@ async function processApp(appConfig, browser, repo, token) {
       console.log(`[${appConfig.id}] 页面 HTML 中未印有版本号（属于动态分发类型），准备捕获下载流...`);
     }
 
+    // Muse 的下载入口是一个前端渲染出来的 CDN 签名直链。优先抓取它，
+    // 避免 /api/hatch/app-download/mac 对未登录或未授权会话返回 not_eligible。
+    let directDownload = null;
+    if (appConfig.downloadLinkSelector) {
+      const directLink = page.locator(appConfig.downloadLinkSelector).first();
+      await directLink.waitFor({ state: 'attached', timeout: 15000 }).catch(() => { });
+      const href = await directLink.getAttribute('href').catch(() => null);
+
+      if (href) {
+        try {
+          const parsed = new URL(href);
+          const filename = decodeURIComponent(parsed.pathname.split('/').pop());
+          if (filename.toLowerCase().endsWith('.dmg')) {
+            directDownload = { href, filename };
+            console.log(`[${appConfig.id}] 找到前端渲染的直链: ${filename}`);
+          }
+        } catch { }
+      }
+    }
+
+    if (directDownload) {
+      const filename = directDownload.filename;
+      const fileMatch = filename.match(new RegExp(appConfig.versionRegex, 'i'));
+      const releaseVersion = fileMatch?.[1] || version || "latest";
+      const releaseTag = `${appConfig.id}-v${releaseVersion}`;
+
+      if (releaseVersion !== "latest" && await checkReleaseExists(repo, releaseTag, token)) {
+        console.log(`[${appConfig.id}] 版本 ${releaseVersion} 已经发布过，跳过下载。`);
+        return;
+      }
+
+      const savePath = path.join(DOWNLOAD_DIR, filename);
+      console.log(`[${appConfig.id}] 正在通过签名直链下载 ${filename}...`);
+      const response = await context.request.get(directDownload.href, {
+        timeout: 600000,
+        headers: { Referer: appConfig.pageUrl }
+      });
+
+      if (!response.ok()) {
+        throw new Error(`签名直链下载失败: HTTP ${response.status()} ${await response.text().catch(() => '')}`);
+      }
+
+      fs.writeFileSync(savePath, await response.body());
+      const sha256 = getSha256(savePath);
+      const notes = `Automated release for ${appConfig.name} v${releaseVersion}\n\nSHA-256: \`${sha256}\``;
+      const title = `${appConfig.name} ${releaseVersion}`;
+
+      console.log(`[${appConfig.id}] 下载完成！SHA-256: ${sha256}`);
+      console.log(`[${appConfig.id}] 正在发布 GitHub Release (${releaseTag})...`);
+      execSync(
+        `gh release create "${releaseTag}" "${savePath}" --title "${title}" --notes "${notes}"`,
+        { stdio: 'inherit', env: { ...process.env, GH_TOKEN: token } }
+      );
+
+      updateOrGenerateCask(appConfig, releaseVersion, sha256, filename, repo);
+      return;
+    }
+
     // 阶段 2：寻找下载按钮触发下载
     let download = null;
     let downloadPromise = context.waitForEvent('download', { timeout: 35000 }).catch(() => null);
