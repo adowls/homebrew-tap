@@ -14,6 +14,12 @@ function getSha256(filePath) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+function getDirectFilePattern(appConfig) {
+  return appConfig.directFilePattern
+    ? new RegExp(appConfig.directFilePattern, 'i')
+    : /\.(?:dmg|pkg|zip|app\.tar\.(?:bz2|gz)|tar\.(?:bz2|gz))(?:[?#]|$)/i;
+}
+
 async function checkReleaseExists(repo, tag, token) {
   if (!repo) return false;
   try {
@@ -114,10 +120,10 @@ async function processApp(appConfig, browser, repo, token) {
       console.log(`[${appConfig.id}] 页面 HTML 中未印有版本号（属于动态分发类型），准备捕获下载流...`);
     }
 
-    // Muse 的下载入口是一个前端渲染出来的 CDN 签名直链。优先抓取它，
-    // 避免 /api/hatch/app-download/mac 对未登录或未授权会话返回 not_eligible。
+    // 优先抓取前端渲染出来的 CDN 签名直链，避免动态 API 端点因资格/会话校验失败。
     let directDownload = null;
-    if (appConfig.downloadLinkSelector) {
+    const directFilePattern = getDirectFilePattern(appConfig);
+    if (appConfig.downloadLinkSelector || appConfig.directFilePattern) {
       let href = null;
 
       if (appConfig.downloadLinkSelector) {
@@ -128,17 +134,17 @@ async function processApp(appConfig, browser, repo, token) {
 
       if (!href) {
         href = await page.$$eval('a[href]', anchors => {
-          const match = anchors.find(anchor => /\.dmg(?:[?#]|$)/i.test(anchor.getAttribute('href') || ''));
+          const match = anchors.find(anchor => directFilePattern.test(anchor.getAttribute('href') || ''));
           return match?.getAttribute('href') || null;
         }).catch(() => null);
       }
 
       if (href) {
         try {
-          const parsed = new URL(href);
+          const parsed = new URL(href, page.url());
           const filename = decodeURIComponent(parsed.pathname.split('/').pop());
-          if (filename.toLowerCase().endsWith('.dmg')) {
-            directDownload = { href, filename };
+          if (directFilePattern.test(href)) {
+            directDownload = { href: parsed.href, filename };
             console.log(`[${appConfig.id}] 找到前端渲染的直链: ${filename}`);
           }
         } catch { }

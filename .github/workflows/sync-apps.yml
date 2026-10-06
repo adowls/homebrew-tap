@@ -35,7 +35,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          node sync.mjs
+          node sync-apps.mjs
 
       - name: Commit & Push Cask Changes
         run: |
