@@ -1,6 +1,6 @@
 cask "muse" do
-  version "6.0"
-  sha256 "3fb6e93e7c8df0e8986c3f763fb5f534f6ae745472b088ed71611549071e5143"
+  version "11.0"
+  sha256 "c3c4eb51732166275ad50bec9105af36b286159ded88aefb9734678bdf42fb85"
 
   url "https://github.com/adowls/homebrew-tap/releases/download/muse-v6.0/Muse-6.0.dmg"
   name "Muse"
