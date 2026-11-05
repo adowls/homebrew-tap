@@ -133,10 +133,10 @@ async function processApp(appConfig, browser, repo, token) {
       }
 
       if (!href) {
-        href = await page.$$eval('a[href]', anchors => {
-          const match = anchors.find(anchor => directFilePattern.test(anchor.getAttribute('href') || ''));
-          return match?.getAttribute('href') || null;
-        }).catch(() => null);
+        const links = await page.locator('a[href]').evaluateAll(anchors =>
+          anchors.map(anchor => anchor.href)
+        );
+        href = links.find(link => directFilePattern.test(link)) || null;
       }
 
       if (href) {
@@ -228,7 +228,7 @@ async function processApp(appConfig, browser, repo, token) {
       console.error(`  - 页面标题: ${await page.title()}`);
       const bodyText = (await page.innerText('body').catch(() => '')).slice(0, 300);
       console.error(`  - 页面文字预览: ${bodyText.replace(/\s+/g, ' ')}`);
-      return;
+      throw new Error(`[${appConfig.id}] 未能从页面捕获安装包下载`);
     }
 
     // 阶段 3：从实际下载到的文件名（如 Muse-6.0.dmg）中提取版本
@@ -277,6 +277,7 @@ async function processApp(appConfig, browser, repo, token) {
 
   } catch (err) {
     console.error(`[${appConfig.id}] 处理异常:`, err);
+    throw err;
   } finally {
     await context.close();
   }
@@ -296,11 +297,13 @@ async function main() {
     ]
   });
 
-  for (const app of apps) {
-    await processApp(app, browser, repo, token);
+  try {
+    for (const app of apps) {
+      await processApp(app, browser, repo, token);
+    }
+  } finally {
+    await browser.close();
   }
-
-  await browser.close();
 }
 
 main().catch(err => {
