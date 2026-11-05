@@ -1,7 +1,7 @@
 cask "double-commander" do
   arch arm: "aarch64"
 
-  version "1.2.9"
+  version "1.2.10"
   sha256 arm:   "6d615ae9d87fe60fed4efbb32fa83b5c21f2bfc007836f3f12e60e599d3447e8"
 
   url "https://github.com/doublecmd/doublecmd/releases/download/v#{version}/doublecmd-#{version}.cocoa.#{arch}.dmg"
