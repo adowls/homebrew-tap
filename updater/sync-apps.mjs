@@ -40,6 +40,7 @@ function updateOrGenerateCask(appConfig, version, sha256, filename, repo) {
     let content = fs.readFileSync(caskPath, 'utf-8');
     content = content.replace(/version\s+"[^"]+"/, `version "${version}"`);
     content = content.replace(/sha256\s+"[^"]+"/, `sha256 "${sha256}"`);
+    content = content.replace(/^\s*url\s+"[^"]+"/m, `  url "https://github.com/${repo}/releases/download/${tag}/${filename}"`);
     fs.writeFileSync(caskPath, content, 'utf-8');
     console.log(`[${appConfig.id}] 已自动更新 ${caskPath} 版本为 ${version}`);
   } else {
