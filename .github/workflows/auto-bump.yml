@@ -23,6 +23,8 @@ jobs:
 
           # 1. 注册本地 Tap
           brew tap adowls/tap "$GITHUB_WORKSPACE"
+          # Homebrew requires an explicit trust grant before loading casks from a custom tap.
+          brew trust adowls/tap
 
           # 2. 检查更新
           UPDATES_JSON=$(brew livecheck --tap adowls/tap --newer-only --json || true)
