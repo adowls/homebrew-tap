@@ -1,10 +1,10 @@
 cask "double-commander" do
   arch arm: "aarch64"
 
-  version "1.2.10"
-  sha256 arm:   "890bf553059d82150b185c0cb7a71ba0de55350d66a0329d941acafb21452470"
+  version "1.2.11"
+  sha256 arm:   "5fd85c49a968c2fa23bf77561035aaed87924a569cad290dbb278fe483392c3f"
 
-  url "https://downloads.sourceforge.net/doublecmd/Double%20Commander/v#{version}/doublecmd-#{version}.cocoa.#{arch}.dmg"
+  url "https://github.com/doublecmd/doublecmd/releases/download/v#{version}/doublecmd-#{version}.cocoa.#{arch}.dmg"
   name "Double Commander"
   desc "File manager with two panels"
   homepage "https://doublecmd.sourceforge.io/"
