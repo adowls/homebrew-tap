@@ -40,7 +40,7 @@
     "pageUrl": "https://www.lingxi.cn/download",
     "versionRegex": "软件版本[^0-9]{0,20}v?([0-9.]+)",
     "clickSelector": "button:has-text('下载 macOS 版')",
-    "downloadOptionSelector": "button:has-text('Apple 芯片')",
+    "downloadOptionSelector": "button[data-quick-download-platform='mac-arm']",
     "appBundle": "灵犀.app"
   }
 ]

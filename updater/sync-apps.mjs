@@ -209,12 +209,11 @@ async function processApp(appConfig, browser, repo, token) {
 
     if (buttonFound) {
       if (appConfig.downloadOptionSelector) {
-        console.log(`[${appConfig.id}] 展开下载选项并选择指定版本...`);
-        await link.hover({ timeout: 10000 });
+        console.log(`[${appConfig.id}] 选择指定下载版本...`);
         const downloadOption = page.locator(appConfig.downloadOptionSelector).first();
         try {
-          await downloadOption.waitFor({ state: 'visible', timeout: 10000 });
-          await downloadOption.click({ timeout: 10000 });
+          await downloadOption.waitFor({ state: 'attached', timeout: 10000 });
+          await downloadOption.evaluate(option => option.click());
         } catch (error) {
           throw new Error(`[${appConfig.id}] 无法选择指定下载选项 ${appConfig.downloadOptionSelector}: ${error.message}`);
         }
