@@ -208,11 +208,9 @@ async function processApp(appConfig, browser, repo, token) {
     }
 
     if (buttonFound) {
-      console.log(`[${appConfig.id}] 捕获到按钮，触发下载点击...`);
-      await link.click({ timeout: 10000 }).catch(async () => {
-        await link.click({ force: true });
-      });
       if (appConfig.downloadOptionSelector) {
+        console.log(`[${appConfig.id}] 展开下载选项并选择指定版本...`);
+        await link.hover({ timeout: 10000 });
         const downloadOption = page.locator(appConfig.downloadOptionSelector).first();
         try {
           await downloadOption.waitFor({ state: 'visible', timeout: 10000 });
@@ -220,6 +218,17 @@ async function processApp(appConfig, browser, repo, token) {
         } catch (error) {
           throw new Error(`[${appConfig.id}] 无法选择指定下载选项 ${appConfig.downloadOptionSelector}: ${error.message}`);
         }
+      } else {
+        console.log(`[${appConfig.id}] 捕获到按钮，触发下载点击...`);
+        await link.click({ timeout: 10000 }).catch(async () => {
+          await link.click({ force: true });
+        });
+      }
+
+      if (!version) {
+        const renderedText = await page.innerText('body').catch(() => '');
+        const renderedMatch = renderedText.match(new RegExp(appConfig.versionRegex, 'i'));
+        if (renderedMatch?.[1]) version = renderedMatch[1];
       }
       download = await downloadPromise;
     }
