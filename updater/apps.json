@@ -27,7 +27,7 @@
     "desc": "AI office assistant",
     "homepage": "https://comate.wps.cn/",
     "pageUrl": "https://comate.wps.cn/downloads",
-    "versionRegex": "WPS%20Comate[_-]([0-9.]+)_aarch64\\.dmg",
+    "versionRegex": "WPS(?:%20|\\s)Comate[_-]([0-9.]+)_aarch64\\.dmg",
     "clickSelector": "a:has-text('下载 Apple 芯片版')",
     "directFilePattern": "WPS(?:%20|\\s)Comate[_-][0-9.]+_aarch64\\.dmg(?:[?#]|$)",
     "appBundle": "WPS Comate.app"
