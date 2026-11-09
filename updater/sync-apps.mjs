@@ -107,7 +107,8 @@ async function processApp(appConfig, browser, repo, token) {
 
     // 阶段 1：先看页面 HTML 中是否已经印有版本（如 FileZilla）
     const content = await page.content();
-    const pageMatch = content.match(new RegExp(appConfig.versionRegex, 'i'));
+    const pageText = await page.innerText('body').catch(() => '');
+    const pageMatch = `${content}\n${pageText}`.match(new RegExp(appConfig.versionRegex, 'i'));
 
     if (pageMatch && pageMatch[1]) {
       version = pageMatch[1];
@@ -211,6 +212,15 @@ async function processApp(appConfig, browser, repo, token) {
       await link.click({ timeout: 10000 }).catch(async () => {
         await link.click({ force: true });
       });
+      if (appConfig.downloadOptionSelector) {
+        const downloadOption = page.locator(appConfig.downloadOptionSelector).first();
+        try {
+          await downloadOption.waitFor({ state: 'visible', timeout: 10000 });
+          await downloadOption.click({ timeout: 10000 });
+        } catch (error) {
+          throw new Error(`[${appConfig.id}] 无法选择指定下载选项 ${appConfig.downloadOptionSelector}: ${error.message}`);
+        }
+      }
       download = await downloadPromise;
     }
 
