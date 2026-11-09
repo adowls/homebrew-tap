@@ -20,5 +20,26 @@
     "clickSelector": ":has-text('Download for macOS'), a[href*='app-download']",
     "downloadLinkSelector": "a[aria-label='Download for macOS']",
     "appBundle": "Muse.app"
+  },
+  {
+    "id": "comate",
+    "name": "WPS Comate",
+    "desc": "AI office assistant",
+    "homepage": "https://comate.wps.cn/",
+    "pageUrl": "https://comate.wps.cn/downloads",
+    "versionRegex": "WPS%20Comate[_-]([0-9.]+)_aarch64\\.dmg",
+    "clickSelector": "a:has-text('下载 Apple 芯片版')",
+    "directFilePattern": "WPS(?:%20|\\s)Comate[_-][0-9.]+_aarch64\\.dmg(?:[?#]|$)",
+    "appBundle": "WPS Comate.app"
+  },
+  {
+    "id": "lingxi",
+    "name": "WPS 灵犀专业版",
+    "desc": "AI office assistant",
+    "homepage": "https://www.lingxi.cn/",
+    "pageUrl": "https://www.lingxi.cn/download",
+    "versionRegex": "软件版本\\s*v?([0-9.]+)",
+    "clickSelector": "button:has-text('macOS Apple 芯片')",
+    "appBundle": "灵犀.app"
   }
 ]

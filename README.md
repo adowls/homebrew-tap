@@ -27,8 +27,10 @@ brew "<cask>"
 | Cask | 说明 | 更新方式 |
 | --- | --- | --- |
 | `double-commander` | 双栏文件管理器 | 上游 livecheck + 自动 bump |
+| `comate` | WPS Comate AI 办公助手（Apple 芯片） | 专用同步器镜像到 GitHub Releases |
 | `filezilla` | FTP、FTPS、SFTP 客户端 | 专用同步器镜像到 GitHub Releases |
 | `i4tools` | 爱思助手 | 上游 livecheck + 自动 bump |
+| `lingxi` | WPS 灵犀专业版（Apple 芯片） | 专用同步器镜像到 GitHub Releases |
 | `mediainfoex` | MediaInfo Finder 扩展 | 上游 livecheck + 自动 bump |
 | `muse` | Muse AI 客户端 | 专用同步器镜像到 GitHub Releases |
 | `zap` | Zed Attack Proxy | 上游 livecheck + 自动 bump |
