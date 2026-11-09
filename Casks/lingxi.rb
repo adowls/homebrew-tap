@@ -10,5 +10,5 @@ cask "lingxi" do
     skip "Managed by custom sync workflow"
   end
 
-  app "灵犀.app"
+  app "WPS 灵犀 #{version}-arm64/WPS 灵犀.app"
 end

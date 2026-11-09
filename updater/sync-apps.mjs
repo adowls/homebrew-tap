@@ -35,12 +35,16 @@ async function checkReleaseExists(repo, tag, token) {
 function updateOrGenerateCask(appConfig, version, sha256, filename, repo) {
   const caskPath = path.resolve('..', 'Casks', `${appConfig.id}.rb`);
   const tag = `${appConfig.id}-v${version}`;
+  const assetUrl = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(filename)}`;
 
   if (fs.existsSync(caskPath)) {
     let content = fs.readFileSync(caskPath, 'utf-8');
     content = content.replace(/version\s+"[^"]+"/, `version "${version}"`);
     content = content.replace(/sha256\s+"[^"]+"/, `sha256 "${sha256}"`);
-    content = content.replace(/^\s*url\s+"[^"]+"/m, `  url "https://github.com/${repo}/releases/download/${tag}/${filename}"`);
+    content = content.replace(/^\s*url\s+"[^"]+"/m, `  url "${assetUrl}"`);
+    if (appConfig.appBundle) {
+      content = content.replace(/^\s*app\s+"[^"]+"/m, `  app "${appConfig.appBundle}"`);
+    }
     fs.writeFileSync(caskPath, content, 'utf-8');
     console.log(`[${appConfig.id}] 已自动更新 ${caskPath} 版本为 ${version}`);
   } else {
@@ -49,7 +53,7 @@ function updateOrGenerateCask(appConfig, version, sha256, filename, repo) {
   version "${version}"
   sha256 "${sha256}"
 
-  url "https://github.com/${repo}/releases/download/${tag}/${filename}"
+  url "${assetUrl}"
   name "${appConfig.name}"
   desc "${appConfig.desc || appConfig.name}"
   homepage "${appConfig.homepage || ""}"
