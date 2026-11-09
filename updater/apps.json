@@ -38,7 +38,7 @@
     "desc": "AI office assistant",
     "homepage": "https://www.lingxi.cn/",
     "pageUrl": "https://www.lingxi.cn/download",
-    "versionRegex": "软件版本[^0-9]{0,20}v?([0-9.]+)",
+    "versionRegex": "(?:软件版本[^0-9]{0,20}v?|lingxi-desktop-)([0-9.]+)",
     "clickSelector": "button:has-text('下载 macOS 版')",
     "downloadOptionSelector": "button[data-quick-download-platform='mac-arm']",
     "appBundle": "灵犀.app"
