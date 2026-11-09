@@ -41,6 +41,6 @@
     "versionRegex": "(?:软件版本[^0-9]{0,20}v?|lingxi-desktop-)([0-9.]+)",
     "clickSelector": "button:has-text('下载 macOS 版')",
     "downloadOptionSelector": "button[data-quick-download-platform='mac-arm']",
-    "appBundle": "WPS 灵犀 #{version}-arm64/WPS 灵犀.app"
+    "appBundle": "WPS 灵犀.app"
   }
 ]
