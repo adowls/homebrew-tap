@@ -32,10 +32,27 @@ async function checkReleaseExists(repo, tag, token) {
   }
 }
 
-function updateOrGenerateCask(appConfig, version, sha256, filename, repo) {
+// 查询 Release 中实际存在的安装包资产名，避免页面文件名与实际资产名不一致（如空格 vs 点号）导致 cask URL 404
+async function getReleaseAssetName(repo, tag, token) {
+  if (!repo) return null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tag}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!res.ok) return null;
+    const release = await res.json();
+    const asset = (release.assets || []).find(a => /\.(?:dmg|pkg|zip|bz2|gz)$/i.test(a.name));
+    return asset ? asset.name : null;
+  } catch {
+    return null;
+  }
+}
+
+async function updateOrGenerateCask(appConfig, version, sha256, filename, repo, token) {
   const caskPath = path.resolve('..', 'Casks', `${appConfig.id}.rb`);
   const tag = `${appConfig.id}-v${version}`;
-  const assetUrl = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(filename)}`;
+  const assetName = (await getReleaseAssetName(repo, tag, token)) || filename;
+  const assetUrl = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(assetName)}`;
 
   if (fs.existsSync(caskPath)) {
     let content = fs.readFileSync(caskPath, 'utf-8');
@@ -192,7 +209,7 @@ async function processApp(appConfig, browser, repo, token) {
         { stdio: 'inherit', env: { ...process.env, GH_TOKEN: token } }
       );
 
-      updateOrGenerateCask(appConfig, releaseVersion, sha256, filename, repo);
+      await updateOrGenerateCask(appConfig, releaseVersion, sha256, filename, repo, token);
       return;
     }
 
@@ -267,13 +284,14 @@ async function processApp(appConfig, browser, repo, token) {
         version = "latest";
       }
       console.log(`[${appConfig.id}] 从实际文件名中解析出版本: ${version}`);
+    }
 
-      const tag = `${appConfig.id}-v${version}`;
-      if (version !== "latest" && await checkReleaseExists(repo, tag, token)) {
-        console.log(`[${appConfig.id}] 版本 ${version} 已经发布过，取消保存本次下载。`);
-        await download.cancel().catch(() => { });
-        return;
-      }
+    // 无论版本号来自页面文本还是文件名，发布前都先检查 Release 是否已存在，避免重复下载和覆盖手工修复
+    const releaseTag = `${appConfig.id}-v${version}`;
+    if (version !== "latest" && await checkReleaseExists(repo, releaseTag, token)) {
+      console.log(`[${appConfig.id}] 版本 ${version} 已经发布过，取消保存本次下载。`);
+      await download.cancel().catch(() => { });
+      return;
     }
 
     // 阶段 4：保存安装包、计算哈希、发布 Release
@@ -296,7 +314,7 @@ async function processApp(appConfig, browser, repo, token) {
     );
 
     // 自动更新或新建 Cask 文件
-    updateOrGenerateCask(appConfig, version, sha256, filename, repo);
+    await updateOrGenerateCask(appConfig, version, sha256, filename, repo, token);
 
   } catch (err) {
     console.error(`[${appConfig.id}] 处理异常:`, err);
