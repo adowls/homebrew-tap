@@ -1,5 +1,5 @@
 cask "i4tools" do
-  version "9.11.003"
+  version "9.12.015"
   sha256 ""
   url "https://url.i4.cn/FFRBr2aa"
   name "i4Tools"
