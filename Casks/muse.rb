@@ -1,6 +1,6 @@
 cask "muse" do
-  version "13.1"
-  sha256 "00cfff39d21c5b5fb694487c8395dbb74b387e1448c0b07208879a8286529e80"
+  version "14.0"
+  sha256 "62549adfceabb6c815ed333474fafd034a288ca2e8b06081178d459954d0e19f"
   url "https://github.com/adowls/homebrew-tap/releases/download/muse-v#{version}/Muse-#{version}.dmg"
   name "Muse"
   desc "Muse — Your Personal AI Agent"
