@@ -41,6 +41,13 @@
     "versionRegex": "(?:软件版本[^0-9]{0,20}v?|lingxi-desktop-)([0-9.]+)",
     "clickSelector": "button:has-text('下载 macOS 版')",
     "downloadOptionSelector": "button[data-quick-download-platform='mac-arm']",
-    "appBundle": "WPS 灵犀.app"
+    "appBundle": "WPS 灵犀.app",
+    "versionApi": {
+      "url": "https://www.lingxi.cn/kdg/api/v1/params/MusaConfig",
+      "versionPointer": "data.download-url-latest.platforms.mac-arm.version",
+      "downloadUrlPointer": "data.download-url-latest.platforms.mac-arm.url",
+      "required": true
+    },
+    "directFilePattern": "lingxi-desktop-[0-9.]+-arm64\\.dmg(?:[?#]|$)"
   }
 ]
