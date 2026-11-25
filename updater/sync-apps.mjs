@@ -106,7 +106,9 @@ async function updateOrGenerateCask(appConfig, version, sha256, filename, repo, 
   const caskPath = path.resolve('..', 'Casks', `${appConfig.id}.rb`);
   const tag = `${appConfig.id}-v${version}`;
   const assetName = (await getReleaseAssetName(repo, tag, token)) || filename;
-  const assetUrl = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(assetName)}`;
+  const encodedAssetName = encodeURIComponent(assetName);
+  const assetNameTemplate = encodedAssetName.split(encodeURIComponent(version)).join('#{version}');
+  const assetUrl = `https://github.com/${repo}/releases/download/${appConfig.id}-v#{version}/${assetNameTemplate}`;
 
   if (fs.existsSync(caskPath)) {
     let content = fs.readFileSync(caskPath, 'utf-8');
