@@ -1,7 +1,7 @@
 cask "lingxi" do
-  version "1.3.44"
-  sha256 "ea5907b65d23412316ba84fed2678055454dd8e674c7a0f2ec06cc8c3593b18b"
-  url "https://github.com/adowls/homebrew-tap/releases/download/lingxi-v1.3.44/lingxi_installer_19fd1457f456.dmg"
+  version "1.3.47"
+  sha256 "4db6dbf965729694b4d66ea88facb9e9edb6b45220095850d843169558b8c87e"
+  url "https://github.com/adowls/homebrew-tap/releases/download/lingxi-v1.3.47/lingxi-desktop-1.3.47-arm64.dmg"
   name "WPS 灵犀专业版"
   desc "AI office assistant"
   homepage "https://www.lingxi.cn/"

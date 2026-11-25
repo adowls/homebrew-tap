@@ -1,8 +1,7 @@
 cask "filezilla" do
-  version "3.71.1"
-  sha256 "73f081493dc528429d601cc0860900b9e9ded60b6a12fadee027d18939939238"
-
-  url "https://github.com/adowls/homebrew-tap/releases/download/filezilla-v#{version}/FileZilla_#{version}_macos-arm64.app.tar.bz2"
+  version "3.72.1"
+  sha256 "d2830c8c5167faf3d5f94f9eadb558bc589c6015b2febcdc4514736561f6363e"
+  url "https://github.com/adowls/homebrew-tap/releases/download/filezilla-v3.72.1/FileZilla_3.72.1_macos-arm64.app.tar.bz2"
   name "FileZilla"
   desc "FTP, FTPS and SFTP client"
   homepage "https://filezilla-project.org/"
